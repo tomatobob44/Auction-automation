@@ -1,0 +1,37 @@
+# binval cost tables & thresholds — edit freely, no code changes needed.
+# These are STARTING assumptions. Module 5 logging + `binval calibrate`
+# replace them with your real measured numbers over time.
+
+[thresholds]
+min_net = 10.0              # minimum net profit ($) to consider BUY
+min_margin_multiple = 3.0   # net_profit / bin_cost must clear this (start strict)
+min_confidence = 0.6        # comp-quality gate; below this → SKIP
+lot_buy_floor = 100.0       # Module 6: total est net a lot must clear to surface
+
+[fees]
+payment_rate = 0.03         # payment processing if not folded into marketplace fee
+
+[fees.ebay]                 # eBay final value fee by category
+default = 0.13
+
+[fees.amazon]               # Amazon referral fee by category
+default = 0.15
+electronics = 0.08
+
+[shipping]                  # weight-class → carrier cost. BIASED HIGH on purpose:
+under_1lb = 6.00            #   under-estimating shipping turns a loss into a fake "win".
+lb_1_3 = 10.00
+lb_3_10 = 16.00
+over_10lb = 28.00
+materials = 0.75            # box, label, tape — flat per shipment
+
+[penalties]
+lithium = 22.50             # hazmat surcharge for lithium-battery items (15–30 range)
+oversize = 15.00            # oversize / heavy surcharge
+
+[defect_rates]              # expected return/INAD cost as a fraction, scaled by condition.
+NEW = 0.025                 # sealed — low but not zero on marketplaces
+OPEN_BOX = 0.10             # missing parts, opened, "not new" complaints
+REFURB = 0.125             # depends heavily on the tester
+USED = 0.15                 # functional / cosmetic disputes
+PARTS = 0.0                 # n/a — usually SKIP anyway

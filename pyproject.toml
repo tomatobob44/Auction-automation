@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "binval"
+version = "0.1.0"
+description = "Single-item liquidation resale valuation engine — UPC/ASIN in, BUY/SKIP out."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.31",
+    "python-dotenv>=1.0",
+    "zxing-cpp>=2.2",
+    "Pillow>=10.0",
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "httpx>=0.27",          # FastAPI TestClient dependency
+]
+
+[project.scripts]
+binval = "binval.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["binval*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

@@ -1,0 +1,23 @@
+{
+  "lots": [
+    {
+      "lot_id": "BS-1001",
+      "source": "b-stock",
+      "url": "https://bstock.example/auctions/1001",
+      "lot_cost": 60.0,
+      "items": [
+        {"identifier": "036000291452", "qty": 3, "condition": "open_box", "title": "Widget A", "weight": "lb_1_3"},
+        {"identifier": "B07FZ8S74R", "qty": 1, "condition": "new", "title": "Gadget B", "weight": "under_1lb"}
+      ]
+    },
+    {
+      "lot_id": "BS-1002",
+      "source": "b-stock",
+      "url": "https://bstock.example/auctions/1002",
+      "lot_cost": 200.0,
+      "items": [
+        {"identifier": "036000291452", "qty": 1, "condition": "used", "title": "Cheap thing", "weight": "lb_1_3"}
+      ]
+    }
+  ]
+}
