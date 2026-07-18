@@ -43,7 +43,8 @@ CREATE TABLE IF NOT EXISTS scans (
     was_returned         INTEGER,
     return_reason        TEXT,
     actual_net           REAL,
-    days_to_sell         INTEGER
+    days_to_sell         INTEGER,
+    labor_minutes        REAL
 );
 CREATE INDEX IF NOT EXISTS idx_scans_identifier ON scans(identifier);
 CREATE INDEX IF NOT EXISTS idx_scans_condition  ON scans(condition);
@@ -51,12 +52,21 @@ CREATE INDEX IF NOT EXISTS idx_scans_condition  ON scans(condition);
 
 
 def connect(db_path: str) -> sqlite3.Connection:
-    """Open (creating if needed) the scans database with the schema applied."""
+    """Open (creating if needed) the scans database with the schema applied.
+    Existing databases from older versions are migrated in place."""
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.executescript(_SCHEMA)
+    _migrate(conn)
     conn.commit()
     return conn
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Idempotently add columns introduced after the first release."""
+    existing = {r["name"] for r in conn.execute("PRAGMA table_info(scans)")}
+    if "labor_minutes" not in existing:
+        conn.execute("ALTER TABLE scans ADD COLUMN labor_minutes REAL")
 
 
 def log_scan(
@@ -114,6 +124,7 @@ def record_outcome(
     was_returned: bool = False,
     return_reason: str | None = None,
     days_to_sell: int | None = None,
+    labor_minutes: float | None = None,
 ) -> float:
     """Record the real sale result for a scan and compute actual_net.
 
@@ -146,7 +157,7 @@ def record_outcome(
         """
         UPDATE scans SET
             actual_sold_price=?, actual_ship_cost=?, was_returned=?,
-            return_reason=?, actual_net=?, days_to_sell=?
+            return_reason=?, actual_net=?, days_to_sell=?, labor_minutes=?
         WHERE scan_id=?
         """,
         (
@@ -156,6 +167,7 @@ def record_outcome(
             return_reason,
             actual_net,
             days_to_sell,
+            labor_minutes,
             scan_id,
         ),
     )
@@ -213,3 +225,24 @@ def calibration_report(conn: sqlite3.Connection) -> list[CalibrationRow]:
         )
         for r in rows
     ]
+
+
+def labor_rate(conn: sqlite3.Connection) -> tuple[float, float, int] | None:
+    """($/labor-hour, total_hours, n) over outcomes with labor recorded.
+
+    This is THE number the field test exists to produce: whether the business
+    beats your alternative hourly rate — $/item flatters, $/hour decides.
+    """
+    row = conn.execute(
+        """
+        SELECT SUM(actual_net) AS net, SUM(labor_minutes) AS mins,
+               COUNT(*) AS n
+        FROM scans
+        WHERE actual_net IS NOT NULL AND labor_minutes IS NOT NULL
+              AND labor_minutes > 0
+        """
+    ).fetchone()
+    if not row or not row["mins"]:
+        return None
+    hours = row["mins"] / 60.0
+    return round(row["net"] / hours, 2), round(hours, 2), row["n"]

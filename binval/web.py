@@ -97,6 +97,8 @@ _PAGE = """<!doctype html>
     <div><label>Ship $</label><input name="ship" type="number" step="0.01" required></div>
     <div><label>Days to sell</label><input name="days" type="number"></div>
   </div>
+  <label>Labor minutes (list + pack + ship)</label>
+  <input name="minutes" type="number" step="1">
   <div class="check"><input type="checkbox" name="returned" value="1"><label style="margin:0">Returned</label></div>
   <label>Return reason</label><input name="reason" placeholder="INAD / DOA">
   <button type="submit" style="background:#46c">RECORD OUTCOME</button>
@@ -174,6 +176,7 @@ def create_app(settings: Settings | None = None,
         sold: float = Form(...),
         ship: float = Form(...),
         days: str = Form(""),
+        minutes: str = Form(""),
         returned: str = Form(""),
         reason: str = Form(""),
     ) -> str:
@@ -183,6 +186,7 @@ def create_app(settings: Settings | None = None,
             tables=settings.costs, was_returned=bool(returned),
             return_reason=reason or None,
             days_to_sell=int(days) if days.strip() else None,
+            labor_minutes=float(minutes) if minutes.strip() else None,
         )
         msg = f"#{scan_id} actual_net ${actual:+.2f}"
         if returned:

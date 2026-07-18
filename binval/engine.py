@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from dataclasses import replace
 
 from .comps import CompSource, combine_comps
 from .config import Settings
@@ -43,10 +44,19 @@ def gather_comps(
     sources: list[CompSource],
     identifier: Identifier,
     condition: Condition,
+    *,
+    sell_marketplace: str = "ebay",
+    amazon_to_ebay: float = 1.0,
 ) -> tuple[CombinedComps | None, list[str]]:
     """Query each source for the requested condition and combine
     same-condition comps. Returns (combined, notes); notes flag source
-    failures so they surface in the verdict reasons."""
+    failures so they surface in the verdict reasons.
+
+    Cross-marketplace correction: an Amazon-side comp (Keepa) used to price an
+    eBay sale is scaled by `amazon_to_ebay` BEFORE combining — Amazon listing
+    prices systematically overstate eBay realized prices for used/open-box
+    goods. Same-marketplace comps pass through untouched.
+    """
     results = []
     notes: list[str] = []
     for src in sources:
@@ -58,6 +68,23 @@ def gather_comps(
             notes.append(f"{getattr(src, 'name', 'source')}_error")
             log.warning("comp source %s failed: %s",
                         getattr(src, "name", "?"), e)
+
+    if sell_marketplace.lower() == "ebay" and amazon_to_ebay != 1.0:
+        adjusted = []
+        for r in results:
+            if r.domain == "amazon":
+                adjusted.append(replace(
+                    r,
+                    median_sold_price=round(r.median_sold_price * amazon_to_ebay, 2),
+                    price_low=round(r.price_low * amazon_to_ebay, 2),
+                    price_high=round(r.price_high * amazon_to_ebay, 2),
+                ))
+                if "ebay_realization" not in notes:
+                    notes.append("ebay_realization")
+            else:
+                adjusted.append(r)
+        results = adjusted
+
     combined = combine_comps(results, condition)
     return combined, notes
 
@@ -84,7 +111,11 @@ def evaluate(
     returns/open-box even when it looks new; pricing as NEW is how you overpay.
     """
     identifier = identify_input(raw_input)
-    combined, notes = gather_comps(sources, identifier, condition)
+    combined, notes = gather_comps(
+        sources, identifier, condition,
+        sell_marketplace=marketplace,
+        amazon_to_ebay=settings.costs.amazon_to_ebay,
+    )
 
     # Informational flags that must surface even on a BUY.
     info_flags: tuple[str, ...] = tuple(notes)

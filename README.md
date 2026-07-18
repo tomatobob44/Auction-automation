@@ -35,11 +35,17 @@ needed for barcode decoding.
 
 ## Comp sources (sanctioned only — never scrape eBay)
 
-| Source | Status | Notes |
+| Source | Role | Notes |
 |---|---|---|
-| **Keepa** | primary, automated | paid API; uses the 90-day avg price at the matched condition. The engine is fully functional on Keepa alone. |
-| **Terapeak (manual)** | available now | you pull median sold + count from Seller Hub by hand and pass `--manual-median/--manual-count`. Zero ToS risk. |
+| **Keepa** | automated **pre-filter** | paid API; 90-day avg price at the matched condition. Amazon-side prices get an `amazon_to_ebay` realization haircut (default 0.75) when selling on eBay. |
+| **Terapeak (manual)** | **source of record** | pull median sold + count from Seller Hub by hand, pass `--manual-median/--manual-count`. Zero ToS risk. |
 | **eBay Marketplace Insights** | dormant stub | real sold data, but approval-gated. Condition-ID mapping is wired; the live path activates when a token is present. |
+
+**Use them in that order in the field:** Keepa answers "is this worth 60 more
+seconds of my attention?" fast and free of ToS risk; Terapeak is the number you
+trust before spending real money on anything over ~$10 of bin cost. Keepa
+prices are Amazon *listing* prices — the realization factor corrects the
+cross-marketplace bias, and your calibration data tunes it.
 
 Condition is normalized into one enum (`NEW, OPEN_BOX, REFURB, USED, PARTS`).
 Comps are only ever compared like-for-like; an unmatched comp is dropped, never
@@ -60,8 +66,9 @@ binval eval --image photo.jpg --bin-cost 5 --condition open_box
 # Flags: --weight {under_1lb,lb_1_3,lb_3_10,over_10lb}  --lithium  --oversize
 #        --marketplace {ebay,amazon}  --category electronics  --store "Bin Co"
 
-# Record a real sale outcome against a scan id (calibrates the defect rate)
-binval outcome 1 --sold 38.50 --ship 6.00 --days 9
+# Record a real sale outcome against a scan id (calibrates the defect rate).
+# --minutes = total labor (listing + packing + shipping) — feeds the $/hr line.
+binval outcome 1 --sold 38.50 --ship 6.00 --days 9 --minutes 25
 binval outcome 1 --sold 38.50 --ship 6.00 --returned --reason INAD
 
 # Estimate-vs-actual accuracy + measured return rate per condition/category
@@ -81,13 +88,33 @@ Sample verdict line:
 ❌ SKIP net -$19.95   -2.5x conf 0.90 | net<$10, margin<3x, battery: hazmat flag #2
 ```
 
-## The calibration loop (the moat)
+## The calibration loop
 
 Every scan is logged. After a sale, `binval outcome` records what actually
-happened — including `was_returned` / `return_reason`. `binval calibrate` then
-compares estimated vs actual net and shows your *measured* return rate per
-condition/category. When those diverge from `config/costs.toml [defect_rates]`,
-edit the table to match. Your engine gets sharper per item processed.
+happened — including `was_returned` / `return_reason` and labor minutes.
+`binval calibrate` then shows estimated vs actual net, your *measured* return
+rate per condition/category, and **$/labor-hour** — the number that actually
+decides whether this business beats your alternative use of time ($/item
+flatters; $/hour decides). When measured rates diverge from
+`config/costs.toml`, edit the tables to match. The engine gets sharper per
+item processed.
+
+## Field-test protocol (run this before scaling anything)
+
+Write the kill criteria down *before* the first store visit:
+
+1. Log **100 scans** and complete **15 sales** with outcomes + labor minutes.
+2. Then check `binval calibrate`:
+   - measured **$/labor-hour < $20** → stop or restructure (higher-ticket
+     items, fewer store visits, batch listing);
+   - **|est − actual| net error > 40%** → the valuation model is broken for
+     your categories; fix `amazon_to_ebay` / defect rates before buying more.
+3. Tune `min_confidence`, `margin_tiers`, and `amazon_to_ebay` from the data,
+   not from vibes.
+
+Module 6 (lot monitoring) is **deferred** until single-item economics clear
+this bar — liquidation auctions are priced by professional bidders, and the
+framework will still be here when the unit economics are proven.
 
 ## Module 6 — compliant online sourcing
 

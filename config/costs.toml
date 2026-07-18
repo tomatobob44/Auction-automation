@@ -4,9 +4,21 @@
 
 [thresholds]
 min_net = 10.0              # minimum net profit ($) to consider BUY
-min_margin_multiple = 3.0   # net_profit / bin_cost must clear this (start strict)
-min_confidence = 0.6        # comp-quality gate; below this → SKIP
+min_margin_multiple = 3.0   # fallback flat margin gate (used if margin_tiers empty)
+# Tiered margin: [max_bin_cost, required_multiple], first matching tier wins.
+# Flat 3x blocks all higher-ticket items — but $15-40-cost items are where the
+# real $/labor-hour is. Scale the required multiple down as ticket rises.
+margin_tiers = [[10.0, 3.0], [25.0, 2.0], [1000000.0, 1.5]]
+min_confidence = 0.5        # comp-quality gate; below this → SKIP.
+                            # 0.5 lets Keepa-alone-with-unknown-demand lean
+                            # BUY-eligible; retune from field calibration data.
 lot_buy_floor = 100.0       # Module 6: total est net a lot must clear to surface
+
+[realization]               # cross-marketplace price correction.
+# Keepa prices are Amazon LISTING prices; eBay realized prices for used/open-box
+# goods typically run 60-80% of them. Applied when the comp is Amazon-side
+# (Keepa) but the sell marketplace is eBay. Calibration tunes this.
+amazon_to_ebay = 0.75
 
 [fees]
 payment_rate = 0.03         # payment processing if not folded into marketplace fee

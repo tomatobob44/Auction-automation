@@ -85,6 +85,7 @@ class _ResponseCache:
 
 class KeepaSource(CompSource):
     name = "keepa"
+    domain = "amazon"   # Keepa reports Amazon-side prices
 
     def __init__(self, api_key: str, http_get: HttpGet | None = None,
                  cache: _ResponseCache | None = None,
@@ -158,11 +159,18 @@ class KeepaSource(CompSource):
 
         # Keepa prices are in integer cents.
         median = avg90[chosen_idx] / 100.0
-        coarse = (condition == Condition.USED) or derived
+        # Only the blended USED series is coarse. A derived comp (condition
+        # fallback) carries its own confidence penalty; charging both made the
+        # open-box fallback mathematically unable to ever clear the gate.
+        coarse = condition == Condition.USED
 
+        # monthlySold is often absent on long-tail items. Absent means demand
+        # is UNKNOWN, not zero — the confidence model treats those differently.
         monthly_sold = product.get("monthlySold")
-        sold_count = int(monthly_sold) if isinstance(monthly_sold, (int, float)) \
-            and monthly_sold > 0 else 0
+        if isinstance(monthly_sold, (int, float)) and monthly_sold > 0:
+            sold_count, count_known = int(monthly_sold), True
+        else:
+            sold_count, count_known = 0, False
 
         return CompResult(
             median_sold_price=round(median, 2),
@@ -173,4 +181,6 @@ class KeepaSource(CompSource):
             source_name=self.name,
             coarse_match=coarse,
             derived=derived,
+            sold_count_known=count_known,
+            domain=self.domain,
         )

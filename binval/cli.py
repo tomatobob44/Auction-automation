@@ -15,7 +15,7 @@ from pathlib import Path
 
 from .comps import CompSource, ManualCompSource
 from .config import load_settings
-from .db import calibration_report, connect, record_outcome
+from .db import calibration_report, connect, labor_rate, record_outcome
 from .engine import evaluate
 from .models import Condition, WeightClass
 from .verdict import format_terse
@@ -83,6 +83,7 @@ def _cmd_outcome(args) -> int:
         was_returned=args.returned,
         return_reason=args.reason,
         days_to_sell=args.days,
+        labor_minutes=args.minutes,
     )
     print(f"#{args.scan_id} actual_net ${actual:+.2f}"
           + ("  [RETURNED]" if args.returned else ""))
@@ -108,6 +109,16 @@ def _cmd_calibrate(args) -> int:
     print("\nConfigured defect_rates (edit config/costs.toml to match measured):")
     for cond, rate in settings.costs.defect_rates.items():
         print(f"  {cond.value:<10} {rate * 100:.1f}%")
+
+    # The number that decides whether this business works: $/labor-hour.
+    lr = labor_rate(conn)
+    if lr:
+        rate_hr, hours, n = lr
+        print(f"\nLabor rate: ${rate_hr:.2f}/hr "
+              f"({n} sales, {hours:.1f}h logged — record via `outcome --minutes`)")
+    else:
+        print("\nLabor rate: no data yet — pass --minutes to `binval outcome` "
+              "to measure $/hr, the number that actually decides viability.")
     return 0
 
 
@@ -180,6 +191,8 @@ def build_parser() -> argparse.ArgumentParser:
     o.add_argument("--returned", action="store_true")
     o.add_argument("--reason", default=None, help="return reason (e.g. INAD, DOA)")
     o.add_argument("--days", type=int, default=None, help="days to sell")
+    o.add_argument("--minutes", type=float, default=None,
+                   help="total labor minutes (listing + packing + shipping)")
     o.set_defaults(func=_cmd_outcome)
 
     # calibrate

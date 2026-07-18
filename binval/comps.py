@@ -79,6 +79,10 @@ NORMALIZED_TO_KEEPA_INDICES: dict[Condition, tuple[int, ...]] = {
 
 class CompSource(ABC):
     name: str
+    # Which marketplace's prices this source reports. Cross-marketplace comps
+    # (Amazon-side Keepa prices for an eBay sale) get a realization haircut in
+    # the engine before combining.
+    domain: str = "ebay"
 
     @abstractmethod
     def get_comps(self, identifier: Identifier,
@@ -111,6 +115,7 @@ def combine_comps(results: list[CompResult | None],
 
     coarse = any(r.coarse_match for r in valid)
     derived = any(r.derived for r in valid)
+    count_known = any(r.sold_count_known for r in valid)
     sources = tuple(r.source_name for r in valid)
     total_count = sum(r.sold_count for r in valid)
     low = min(r.price_low for r in valid)
@@ -128,6 +133,7 @@ def combine_comps(results: list[CompResult | None],
             divergent=False,
             coarse_match=coarse,
             derived=derived,
+            sold_count_known=count_known,
         )
 
     medians = [r.median_sold_price for r in valid]
@@ -157,6 +163,7 @@ def combine_comps(results: list[CompResult | None],
         divergent=divergent,
         coarse_match=coarse,
         derived=derived,
+        sold_count_known=count_known,
     )
 
 

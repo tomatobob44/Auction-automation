@@ -19,8 +19,15 @@ from .models import (
 
 # --- Confidence model (tunable constants) ----------------------------------
 
-# Base confidence from how many recent sales back the comp.
-def _base_from_sold_count(n: int) -> float:
+# Base confidence from how many recent sales back the comp. Unknown demand
+# (source couldn't report a count, e.g. Keepa monthlySold absent) is NOT the
+# same as measured-zero demand — it gets a middle base rather than the floor.
+_BASE_UNKNOWN_COUNT = 0.6
+
+
+def _base_from_sold_count(n: int, known: bool = True) -> float:
+    if not known:
+        return _BASE_UNKNOWN_COUNT
     if n >= 20:
         return 1.0
     if n >= 10:
@@ -41,7 +48,7 @@ _PENALTY_DERIVED = 0.7       # comp synthesized from a different condition
 
 def confidence_score(comps: CombinedComps, identifier: Identifier) -> float:
     """Score in [0, 1]. Starts from sold-count tier, then applies caveats."""
-    score = _base_from_sold_count(comps.sold_count)
+    score = _base_from_sold_count(comps.sold_count, comps.sold_count_known)
     if comps.coarse_match:
         score *= _PENALTY_COARSE
     if len(comps.sources) < 2:
@@ -69,12 +76,13 @@ def decide(costs: CostBreakdown, confidence: float, th: Thresholds,
     landed-cost net, so a high-margin battery item can still be a BUY.
     """
     margin_multiple = (costs.net / costs.bin_cost) if costs.bin_cost > 0 else 0.0
+    required_margin = th.required_margin(costs.bin_cost)
     fails: list[str] = []
 
     if costs.net < th.min_net:
         fails.append(f"net<${th.min_net:.0f}")
-    if margin_multiple < th.min_margin_multiple:
-        fails.append(f"margin<{th.min_margin_multiple:g}x")
+    if margin_multiple < required_margin:
+        fails.append(f"margin<{required_margin:g}x")
     if confidence < th.min_confidence:
         fails.append(f"conf<{th.min_confidence:g}")
 

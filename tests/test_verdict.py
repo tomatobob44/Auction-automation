@@ -101,8 +101,8 @@ def test_decide_skip_on_low_margin():
 
 
 def test_decide_skip_on_low_confidence():
-    th = Thresholds()
-    v = decide(_costs(net=50.0, bin_cost=5.0), confidence=0.5, th=th)
+    th = Thresholds()  # default min_confidence now 0.5
+    v = decide(_costs(net=50.0, bin_cost=5.0), confidence=0.49, th=th)
     assert v.decision == "SKIP"
     assert any("conf<" in r for r in v.reasons)
 

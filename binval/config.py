@@ -30,6 +30,9 @@ class CostTables:
     lithium_penalty: float
     oversize_penalty: float
     defect_rates: dict[Condition, float]
+    # Cross-marketplace realization: Amazon-side comp prices (Keepa) scaled to
+    # expected eBay realized prices when selling on eBay.
+    amazon_to_ebay: float = 0.75
 
     def marketplace_fee_rate(self, marketplace: str, category: str) -> float:
         table = self.marketplace_fees.get(marketplace.lower(), {})
@@ -40,8 +43,17 @@ class CostTables:
 class Thresholds:
     min_net: float = 10.0
     min_margin_multiple: float = 3.0
-    min_confidence: float = 0.6
+    min_confidence: float = 0.5
     lot_buy_floor: float = 100.0
+    # ((max_bin_cost, required_multiple), ...) — first tier whose max_bin_cost
+    # >= bin_cost wins. Empty tuple -> flat min_margin_multiple.
+    margin_tiers: tuple[tuple[float, float], ...] = ()
+
+    def required_margin(self, bin_cost: float) -> float:
+        for max_cost, multiple in self.margin_tiers:
+            if bin_cost <= max_cost:
+                return multiple
+        return self.min_margin_multiple
 
 
 @dataclass(frozen=True)
@@ -113,6 +125,10 @@ def _parse_costs(raw: dict) -> CostTables:
         if cond.name in defect_raw:
             defect_rates[cond] = float(defect_raw[cond.name])
 
+    realization_raw = raw.get("realization", {})
+    amazon_to_ebay = float(realization_raw.get(
+        "amazon_to_ebay", _DEFAULT_COSTS.amazon_to_ebay))
+
     return CostTables(
         marketplace_fees=marketplace_fees,
         payment_rate=payment_rate,
@@ -121,17 +137,25 @@ def _parse_costs(raw: dict) -> CostTables:
         lithium_penalty=lithium,
         oversize_penalty=oversize,
         defect_rates=defect_rates,
+        amazon_to_ebay=amazon_to_ebay,
     )
 
 
 def _parse_thresholds(raw: dict) -> Thresholds:
     t = raw.get("thresholds", {})
     d = _DEFAULT_THRESHOLDS
+    tiers_raw = t.get("margin_tiers", [])
+    margin_tiers = tuple(
+        (float(pair[0]), float(pair[1]))
+        for pair in tiers_raw
+        if isinstance(pair, (list, tuple)) and len(pair) == 2
+    )
     return Thresholds(
         min_net=float(t.get("min_net", d.min_net)),
         min_margin_multiple=float(t.get("min_margin_multiple", d.min_margin_multiple)),
         min_confidence=float(t.get("min_confidence", d.min_confidence)),
         lot_buy_floor=float(t.get("lot_buy_floor", d.lot_buy_floor)),
+        margin_tiers=margin_tiers,
     )
 
 

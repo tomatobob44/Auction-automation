@@ -76,7 +76,9 @@ def test_keepa_open_box_falls_back_to_used_like_new():
     assert r is not None
     assert r.median_sold_price == 32.99
     assert r.derived is True            # came from a fallback index
-    assert r.coarse_match is True
+    # derived carries ONLY the derived penalty — charging coarse as well made
+    # the fallback mathematically unable to ever clear the confidence gate.
+    assert r.coarse_match is False
 
 
 def test_keepa_parts_returns_none():

@@ -61,6 +61,12 @@ class CompResult:
     # Set when the comp was derived from a different condition (e.g. OPEN_BOX
     # synthesized from a Used sub-tier because Warehouse Deals had no data).
     derived: bool = False
+    # False when the source could not report demand (e.g. Keepa monthlySold
+    # absent). Unknown demand is NOT the same as zero demand.
+    sold_count_known: bool = True
+    # Which marketplace's prices these are ("amazon" for Keepa, "ebay" for
+    # Terapeak/Insights). Cross-marketplace comps get a realization haircut.
+    domain: str = "ebay"
 
 
 @dataclass(frozen=True)
@@ -76,6 +82,7 @@ class CombinedComps:
     divergent: bool = False       # cross-source spread > 40% at same condition
     coarse_match: bool = False
     derived: bool = False
+    sold_count_known: bool = True  # any contributing source reported demand
 
 
 @dataclass(frozen=True)
