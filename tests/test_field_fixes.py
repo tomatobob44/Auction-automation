@@ -253,3 +253,27 @@ def test_old_db_migrates_labor_minutes(tmp_path):
 def test_labor_rate_none_without_minutes(settings):
     conn = connect(settings.db_path)
     assert labor_rate(conn) is None
+
+
+# --- review hardening ---------------------------------------------------------
+
+def test_margin_tiers_order_independent():
+    # catch-all listed FIRST must not swallow the cheap tiers
+    th = Thresholds(margin_tiers=((1_000_000.0, 1.5), (10.0, 3.0), (25.0, 2.0)))
+    assert th.required_margin(5.0) == 3.0
+    assert th.required_margin(15.0) == 2.0
+    assert th.required_margin(80.0) == 1.5
+
+
+def test_rerecording_outcome_keeps_labor_minutes(settings):
+    conn = connect(settings.db_path)
+    from tests.test_db import _seed_scan
+    scan_id = _seed_scan(conn)
+    record_outcome(conn, scan_id, sold_price=95.0, ship_cost=11.0,
+                   tables=_DEFAULT_COSTS, labor_minutes=30.0)
+    # correct the sale price later WITHOUT re-passing minutes
+    record_outcome(conn, scan_id, sold_price=90.0, ship_cost=11.0,
+                   tables=_DEFAULT_COSTS)
+    row = conn.execute("SELECT labor_minutes FROM scans WHERE scan_id=?",
+                       (scan_id,)).fetchone()
+    assert row["labor_minutes"] == 30.0   # preserved, not nulled

@@ -50,7 +50,9 @@ class Thresholds:
     margin_tiers: tuple[tuple[float, float], ...] = ()
 
     def required_margin(self, bin_cost: float) -> float:
-        for max_cost, multiple in self.margin_tiers:
+        # Sort by max_cost so tier order in costs.toml can't silently change
+        # which tier wins (the catch-all listed first would match everything).
+        for max_cost, multiple in sorted(self.margin_tiers):
             if bin_cost <= max_cost:
                 return multiple
         return self.min_margin_multiple

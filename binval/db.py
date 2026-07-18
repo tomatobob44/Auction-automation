@@ -157,7 +157,8 @@ def record_outcome(
         """
         UPDATE scans SET
             actual_sold_price=?, actual_ship_cost=?, was_returned=?,
-            return_reason=?, actual_net=?, days_to_sell=?, labor_minutes=?
+            return_reason=?, actual_net=?, days_to_sell=?,
+            labor_minutes=COALESCE(?, labor_minutes)
         WHERE scan_id=?
         """,
         (
